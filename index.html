@@ -1,0 +1,435 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);color:var(--color-text-primary);background:transparent}
+.wrap{padding:1.5rem 0;max-width:800px;margin:0 auto}
+h2{font-size:18px;font-weight:500;margin-bottom:0.5rem}
+.sub{font-size:14px;color:var(--color-text-secondary);margin-bottom:1.5rem}
+.upload-zone{border:1.5px dashed var(--color-border-secondary);border-radius:var(--border-radius-lg);padding:2.5rem;text-align:center;cursor:pointer;transition:background 0.15s;margin-bottom:1rem}
+.upload-zone:hover{background:var(--color-background-secondary)}
+.upload-zone input{display:none}
+.upload-icon{font-size:28px;margin-bottom:8px}
+.upload-label{font-size:14px;color:var(--color-text-secondary)}
+.upload-label strong{color:var(--color-text-primary);font-weight:500}
+.btn{background:transparent;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);padding:8px 18px;font-size:14px;cursor:pointer;color:var(--color-text-primary);font-family:var(--font-sans)}
+.btn:hover{background:var(--color-background-secondary)}
+.btn:active{transform:scale(0.98)}
+.btn-primary{background:var(--color-text-primary);color:var(--color-background-primary);border-color:var(--color-text-primary)}
+.btn-primary:hover{opacity:0.85}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:1.5rem 0}
+.stat{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:1rem;text-align:center}
+.stat-val{font-size:24px;font-weight:500}
+.stat-lbl{font-size:12px;color:var(--color-text-secondary);margin-top:2px}
+.preview{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden;margin-bottom:1rem}
+.preview table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+.preview th{background:var(--color-background-secondary);padding:8px 10px;text-align:left;font-weight:500;border-bottom:0.5px solid var(--color-border-tertiary);color:var(--color-text-secondary);font-size:12px}
+.preview td{padding:7px 10px;border-bottom:0.5px solid var(--color-border-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preview tr:last-child td{border-bottom:none}
+.owner-badge{display:inline-block;background:var(--color-background-info);color:var(--color-text-info);border-radius:4px;padding:2px 7px;font-size:11px;font-weight:500}
+.unmatched{background:var(--color-background-warning);color:var(--color-text-warning);border-radius:4px;padding:2px 7px;font-size:11px}
+.actions{display:flex;gap:10px;margin-top:1rem}
+.hidden{display:none}
+.error{color:var(--color-text-danger);font-size:13px;margin-top:8px}
+.info{font-size:13px;color:var(--color-text-secondary);margin-bottom:1rem}
+.col-owner{width:200px}
+.col-id{width:100px}
+.textarea-out{width:100%;min-height:160px;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:10px;font-size:12px;font-family:var(--font-mono);resize:vertical;background:var(--color-background-primary);color:var(--color-text-primary)}
+.copy-msg{font-size:12px;color:var(--color-text-success);margin-left:8px}
+</style>
+<div class="wrap">
+<h2 class="sr-only">Lead Assignment Rule Processor</h2>
+<h2>Lead assignment rule processor</h2>
+<p class="sub">Upload a CSV with columns: <strong>recordid, language, country, preferred language</strong> — get back a CSV with assigned owner.</p>
+
+<div class="upload-zone" id="zone" onclick="document.getElementById('filein').click()">
+  <div class="upload-icon">&#128196;</div>
+  <div class="upload-label"><strong>Click to upload</strong> or drag & drop a CSV file</div>
+  <input type="file" id="filein" accept=".csv,.txt">
+</div>
+<div id="err" class="error hidden"></div>
+
+<div id="results" class="hidden">
+  <div class="stats">
+    <div class="stat"><div class="stat-val" id="s-total">0</div><div class="stat-lbl">Total records</div></div>
+    <div class="stat"><div class="stat-val" id="s-matched">0</div><div class="stat-lbl">Matched</div></div>
+    <div class="stat"><div class="stat-val" id="s-unmatched">0</div><div class="stat-lbl">Unmatched</div></div>
+  </div>
+  <p class="info">Preview (first 10 rows):</p>
+  <div class="preview">
+    <table>
+      <thead><tr><th class="col-id">Record ID</th><th>Language</th><th>Country</th><th>Preferred language</th><th class="col-owner">Assigned owner</th></tr></thead>
+      <tbody id="preview-body"></tbody>
+    </table>
+  </div>
+  <p class="info">Output CSV (copy and paste into Excel):</p>
+  <textarea class="textarea-out" id="csv-out" readonly></textarea>
+  <div class="actions">
+    <button class="btn btn-primary" onclick="copyCSV()">Copy CSV</button>
+    <span id="copy-msg" class="copy-msg hidden">Copied!</span>
+    <button class="btn" onclick="resetApp()">Upload another</button>
+  </div>
+</div>
+</div>
+
+<script>
+const zone = document.getElementById('zone');
+const filein = document.getElementById('filein');
+zone.addEventListener('dragover', e=>{e.preventDefault();zone.style.background='var(--color-background-secondary)'});
+zone.addEventListener('dragleave', ()=>zone.style.background='');
+zone.addEventListener('drop', e=>{e.preventDefault();zone.style.background='';if(e.dataTransfer.files[0])processFile(e.dataTransfer.files[0])});
+filein.addEventListener('change', ()=>{if(filein.files[0])processFile(filein.files[0])});
+
+function sw(str, prefix){
+  if(!str||!prefix)return false;
+  const s=str.trim().toLowerCase();
+  const ps=prefix.split(',').map(p=>p.trim().toLowerCase());
+  return ps.some(p=>s.startsWith(p));
+}
+function eq(str, vals){
+  if(!str||!vals)return false;
+  const s=str.trim().toLowerCase();
+  const vs=vals.split(',').map(v=>v.trim().toLowerCase());
+  return vs.some(v=>s===v);
+}
+function neq(str, vals){return !eq(str,vals)}
+function inc(str, val){
+  if(!str||!val)return false;
+  return str.trim().toLowerCase().includes(val.trim().toLowerCase());
+}
+
+function assign(lang, country, pref){
+  const l=lang||'', c=country||'', p=pref||'';
+  // Rule 1
+  if((sw(l,'ft-')&&eq(p,'Hindi'))||(sw(l,'ft-')&&eq(p,'English')&&eq(c,'India')))return 'India Leads Queue FSC';
+  // Rule 2
+  if(sw(l,'ft-')&&eq(c,'Bhutan,Maldives,Nepal,Sri Lanka'))return 'Nepal Leads Queue FSC';
+  // Rule 3
+  if((sw(l,'ft-')&&eq(p,'Italian'))||(sw(l,'ft-')&&eq(p,'English')&&eq(c,'Italy'))||(sw(l,'ft-')&&eq(c,'Malta')))return 'FSC Italian Queue';
+  // Rule 4
+  if(sw(l,'ft-')&&eq(c,'Bulgaria,Croatia,Czech Republic,Denmark,Estonia,Finland,Hungary,Iceland,Ireland,Latvia,Liechtenstein,Lithuania,Luxembourg,Netherlands,Portugal,Slovenia,Slovakia'))return 'Stefan Papa-Michael FSC';
+  // Rule 5
+  if((sw(l,'ft-')&&eq(p,'Polish'))||(sw(l,'ft-')&&eq(p,'English')&&eq(c,'Poland')))return 'Milena Cwiok FSC';
+  // Rule 6
+  if((sw(l,'ft-')&&eq(p,'Spanish'))||(sw(l,'ft-')&&eq(p,'English')&&eq(c,'Spain'))||(sw(l,'ft-')&&eq(c,'Portugal')))return 'Pablo Ruiz FSC';
+  // Rule 7
+  if((sw(l,'ft-')&&eq(p,'Romanian'))||(sw(l,'ft-')&&eq(p,'English')&&eq(c,'Romania')))return 'Stefania Michael FSC';
+  // Rule 8
+  if(sw(l,'ft-')&&(eq(c,'Martinique,Guadeloupe')||inc(c,'Saint Martin')))return 'Stefan Papa-Michael FSC';
+  // Rule 9
+  if(sw(l,'ft-')&&eq(c,'Sweden,Norway'))return 'Stefan Papa-Michael FSC';
+  // Rule 10
+  if(sw(l,'ft-')&&eq(c,'France'))return 'Stefan Papa-Michael FSC';
+  // Rule 11
+  if((sw(l,'ft-')&&eq(p,'Greek'))||(sw(l,'ft-')&&eq(c,'Greece')&&eq(p,'English')))return 'Gkitsioudis Christos FSC';
+  // Rule 12
+  if(sw(l,'ft-'))return 'Stefan Papa-Michael FSC';
+  // Rule 13
+  if(sw(l,'int-')&&eq(p,'Greek,English')&&eq(c,'Greece'))return 'Gkitsioudis Christos FSC';
+  // Rule 14
+  if(sw(l,'int-')&&eq(c,'Switzerland')&&eq(p,'French,German,Italian,Romansh,English'))return 'Mariaa SebastinoGiovanniChiara FSC Queue';
+  // Rule 15
+  if(sw(l,'int-')&&eq(c,'Austria,Germany,Netherlands,Netherlands Antilles,Norway')&&eq(p,'German,Dutch,English,Papiamentu,Norwegian'))return 'Mariia Bartienieva FSC';
+  // Rule 16
+  if(sw(l,'int-')&&eq(c,'Poland')&&eq(p,'Polish,English'))return 'Milena Cwiok FSC';
+  // Rule 17
+  if(sw(l,'int-')&&eq(c,'Italy,San Marino,Vatican City')&&eq(p,'Italian,Latin,English'))return 'Sebastiano Giovanni Chiara FSC Queue';
+  // Rule 18
+  if(sw(l,'int-')&&(inc(c,'Moldova')&&inc(c,'Republic of')||eq(c,'Romania'))&&eq(p,'Romanian,Russian,Italian,English'))return 'Tataru Ady';
+  // Rule 19
+  if(sw(l,'int-')&&eq(c,'Bhutan,India,Maldives,Nepal,Sri Lanka')&&eq(p,'Dzongkha,Hindi,English,Dhivehi,Nepali,Sinhala'))return 'Sethu, Afsal, Jafar Leads FSC Queue';
+  // Rule 20 (not checked - email not checked but still assign)
+  if(sw(l,'int-')&&eq(c,'Kosovo')&&(eq(p,'Albanian')||eq(p,'English')))return 'Stefan Papa-Michael FSC';
+  // Rule 21
+  if(sw(l,'int-')&&eq(c,'Bangladesh,Pakistan')&&(eq(p,'Bengali,Urdu')||eq(p,'English')))return 'Jafar Mohammed FSC';
+  // Rule 22
+  if(sw(l,'int-')&&eq(c,'Philippines')&&eq(p,'Filipino,English'))return 'Sammy Hernandez Cuyugan FPT';
+  // Rule 23
+  if(sw(l,'int-')&&(eq(c,'Andorra,Angola,Argentina,Bolivia (Plurinational State of),Brazil,Chile,Colombia,Costa Rica,Dominican Republic,Ecuador,El Salvador')||eq(c,'Equatorial Guinea,Falkland Islands (Malvinas),French Guiana,Guadeloupe,Guatemala,Guyana,Haiti,Honduras,Martinique,Mexico,Mozambique,Nicaragua')||eq(c,'Panama,Paraguay,Peru,Portugal,Saint Barthélemy,Saint Helena,Ascension and Tristan da Cunha,Saint Martin (French part)')||eq(c,'Sao Tome and Principe,South Georgia and the South Sandwich Islands,Spain,Suriname,Uruguay,Venezuela (Bolivarian Republic of)'))&&eq(p,'Spanish,Portuguese,English,French,Haitian Creole,Dutch'))return 'Pablo, Mohammed Leads FSC Queue';
+  // Rule 24
+  if(sw(l,'int-')&&(eq(c,',Algeria,Bahrain,Comoros')||eq(c,'Djibouti')||eq(c,'Niger')||eq(c,'Egypt,eritrea,Ethiopia,Georgia,Israel,Jordan,Kuwait,Lebanon,Mauritania,Morocco')||eq(c,'Oman,Qatar,Saudi Arabia,Tunisia,Turkey,Turkmenistan,United Arab Emirates,Western Sahara'))&&(eq(p,'Afar,Amharic,Amir,Arabic,Beni,Bilen,Comorian,English,French,Georgian,Hebrew,Kinyarwanda,Kirundi,Kunama,Nera')||eq(p,'Oromo,Portuguese,Rashaida,Russian,Saho,Somali,Spanish,Swahili,Tigre,Tigrigna,Tigrinya,Turkish,Turkmen')))return 'Mohammed Bounoua Taleb FPT';
+  // Rule 25 - large preferred language list
+  const r25langs='Afrikaans,Albanian,Arabic,Armenian,Azerbaijani,Belarusian,Bislama,Bosnian,Bulgarian,Carolinian,Chamorro,Chewa,Chibarwe,Chinese,Croatian,Czech,Danish,Dutch,Estonia,Faroese,Fiji Hindi,Fijian,Finnish,French,German,Greenlandic,Hindi,Hiri Motu,Hungarian,Icelandic,Indonesian,Irish,Italian,Jèrriais,Kalanga,Khmer,Kinyarwanda,Kiribati,Kirundi,Koisan,Korean,Kyrgyz,Lao,Latvian,Luxembourgish,Macedonian,Malagasy,Malay,Maltese,Mandarin Chinese,Manx,Marshallese,Mongolian,Montenegrin,Rarotongan,Russian,Ukrainian,Samoan,Tswana,Tuvaluan,Uzbek,Venda,Vietnamese,Xhosa,Zulu,Nambya,Nauruan,Ndau,Ndebele,Niue,Norfuk,Norwegian,Palauan,Papiamento,Papua New Guinean Sign Language,Pitcarin,Portuguese,Pukapukan,Slovak,Slovenian,Sotho,Southern Sotho,Spanish,Standard Chinese,Swahili,Swati,Swedish,Tajiki,Tamil,Thai,Tok Pisin,Tokelau,Tokelauan,Tonga,Tongan,Serbian,Seychellois Creole,Shangani,Shared AU,Shona,Sign Language,Sango';
+  if(sw(l,'int-')&&eq(p,r25langs))return 'Stefan, Tataru, Milena Lead FSC Queue';
+  // Rule 26 - large country list, English preferred
+  const r26countries='Åland Islands,Albania,American Samoa,Anguilla,Antarctica,Antigua and Barbuda,Armenia,Aruba,Azerbaijan,Bahamas,Barbados,Belize,Benin,Bermuda,Bonaire,Sint Eustatius and Saba,Bosnia and Herzegovina,Botswana,Bouvet Island,British Indian Ocean Territory,Brunei Darussalam,Bulgaria,Burkina Faso,Burundi,Cabo Verde (Cape Verde),Cambodia,Cameroon,Canada,Cayman Islands,Chad,China,Congo,the Democratic Republic of the,Congo,Cook Islands,Côte d\'Ivoire,Croatia,Curaçao,Czech republic,Denmark,Dominica,Estonia,Eswatini,Faroe Islands,Fiji,Finland,French Polynesia,French Southern Territories,Gabon,Gambia,Ghana,Gibraltar,Greenland,Grenada,Guam,Guernsey,Guinea,Guinea-Bissau,Heard Island and McDonald Islands,Hong Kong,Hungary,Iceland,Indonesia,Ireland,Isle of Man,Jamaica,Jersey,Kazakhstan,Kenya,Kiribati,Korea,Republic of (South Korea),Kyrgyzstan,Lao People\'s Democratic Republic,Latvia,Lesotho,Liechtenstein,Lithuania,Luxembourg,Macao,Madagascar,Malawi,Malaysia,Malta,Marshall Islands,Mauritius,Mayotte,Micronesia (Federated States of),Monaco,Mongolia,Montenegro,Montserrat,Namibia,Nauru,New Caledonia,Nigeria,Niue,Norfolk Island,North Macedonia,Northern Mariana Islands,Palau,Papua New Guinea,Pitcairn,Réunion,Rwanda,Saint Kitts and Nevis,Saint Lucia,Saint Pierre and Miquelon,Saint Vincent and the Grenadines,Samoa,Senegal,Serbia,Seychelles,Sierra Leone,Singapore,Sint Maarten (Dutch part),Slovakia,Slovenia,Solomon Islands,South Africa,Svalbard and Jan Mayen,Swaziland,Sweden,Taiwan,Province of China,Tajikistan,Tanzania,United Republic of,Thailand,Timor-Leste,Togo,Tokelau,Tonga,Trinidad and Tobago,Turks and Caicos Islands,Tuvalu,Uganda.Ukraine,Uzbekistan,Vanuatu,Viet Nam,Virgin Islands (British),United Kingdom of Great Britain and Northern Ireland,Wallis and Futuna,Zambia,Zimbabwe';
+  if(sw(l,'int-')&&eq(p,'English')&&eq(c,r26countries))return 'Stefan, Tataru, Milena Lead FSC Queue';
+  // Rule 27
+  if(sw(l,'int-'))return 'Sales FPT';
+
+  // Promo code rules 28-61 - not applicable (no promo code column)
+
+  // Rule 62 - agent field not in our data
+  // Rule 63
+  if((sw(l,'EN')||sw(l,'sc-')||sw(l,'EU')||sw(l,'ke-')||sw(l,'stl-'))&&eq(c,'Iraq'))return 'Maria and Maryam Lead Queue';
+  // Rule 64 - banned country
+  const bannedC='Afghanistan,Albania,American Samoa,Belarus,Belgium,Canada,Central African Republic,Cuba,Cyprus,Iraq,Japan,Liberia,Mali,Myanmar,New Zealand,Russian Federation,Somalia,South Sudan,Sudan,Syrian Arab Republic,United States Minor Outlying Islands,United States of America,Yemen';
+  if(eq(c,bannedC)||(inc(c,'Iran')&&inc(c,'Islamic Republic of'))||(inc(c,'Korea')&&inc(c,'Democratic People\'s Republic of'))||(inc(c,'Palestine')&&inc(c,'State of'))||(inc(c,'Virgin Islands')&&inc(c,'U.S.'))||inc(c,'France')||inc(c,'Holy See (Vatican City State)')||inc(c,'India')||inc(c,'Libyan Arab Jamahiriya')||inc(c,'Monaco')||inc(c,'Puerto Rico')||inc(c,'Republic of Kosovo')||inc(c,'San Marino')||inc(c,'Serbia')||inc(c,'Spain')||inc(c,'Switzerland')||inc(c,'Ukraine'))return 'Banned Country';
+  // Rule 65
+  // (products not in data)
+  // Rule 66
+  if(eq(c,'Australia')||eq(c,'Christmas Island')||(inc(c,'Cocos')&&inc(c,'Keeling')&&inc(c,'Islands')))return 'Australian Queue';
+  // Rule 67
+  if(eq(l,'EU')&&eq(c,'Austria,Bulgaria,Croatia,Czech Republic,Denmark,Estonia,Finland,Germany,Greece,Hungary,Iceland,Ireland,Latvia,Liechtenstein,Lithuania,Luxembourg,Netherlands,Norway,Portugal,Romania,Slovakia,Slovenia,Spain,Sweden'))return 'FPM CYSEC Support Desk';
+  // Rule 68
+  if(inc(l,'EU')&&(eq(c,'Malta,Gibraltar,Italy,Malta,San Marino,Vatican City')||eq(p,'Italian')))return 'Graziana Colanera EU';
+  // Rule 69
+  if(eq(l,'EU')&&eq(c,'Poland'))return 'Maria Kluczynska EU';
+  // Rule 70
+  if(eq(l,'EU'))return 'FPM CYSEC Support Desk';
+  // Rule 71
+  if(eq(c,'Curaçao,Guatemala,Honduras')&&(eq(p,'Spanish')||eq(p,'English')))return 'Valentina_Maria_Pablo_Queue';
+  // Rule 72
+  if(eq(c,'Spain,Chile,Colombia,Andorra')&&(eq(p,'Spanish')||eq(p,'English')))return 'Maria Martinez';
+  // Rule 73
+  if(eq(c,'Brazil,Portugal,Angola,Cabo Verde,Guinea Bissau,Mozambique,Saint Helena,Sao Tome and Principe,Timor Leste,Tristan da Cunha')&&(eq(p,'Portuguese')||eq(p,'English')))return 'Michele Coutinho';
+  // Rule 74
+  if((eq(c,'Argentina,Ecuador,Paraguay,Uruguay,Venezuela,Guatemala')||inc(c,'Bolivia'))&&eq(p,'Spanish'))return 'Valentina Sarmiento';
+  // Rule 75
+  if((eq(c,'Argentina,Ecuador,Paraguay,Uruguay,Venezuela,Guatemala')||inc(c,'Bolivia'))&&eq(p,'English'))return 'Angel Romo';
+  // Rule 76
+  if((eq(c,'Costa Rica,Dominican Republic,El Salvador,Guadeloupe,Honduras,Mexico,Nicaragua,Panama,Peru')||inc(c,'Malvinas')||inc(c,'South Georgia'))&&eq(p,'Spanish,English'))return 'Angel Romo';
+  // Rule 77
+  if(eq(c,'Romania'))return 'Stefania Michael';
+  // Rule 78
+  if(eq(p,'Spanish'))return 'Tatiana Salgado';
+  // Rule 79
+  if(eq(p,'Portuguese'))return 'Michele Coutinho';
+  // Rule 80
+  if(eq(p,'Arabic')&&neq(c,'Morocco'))return 'MENA Leads Queue';
+  // Rule 81
+  if(eq(p,'Polish'))return 'Nikos Nouardos';
+  // Rule 82
+  if(eq(p,'Urdu'))return 'Pakistan Queue - Lead';
+  // Rule 83
+  if(eq(p,'Russian'))return 'Illia Berezovskyi';
+  // Rule 84
+  if(eq(p,'German'))return 'Mariia Bartienieva';
+  // Rule 85
+  if(eq(p,'Greek'))return 'George Tziazas';
+  // Rule 86
+  if(eq(p,'Malay'))return 'Malaysia Queue';
+  // Rule 87
+  if(eq(p,'French')&&neq(c,'Morocco'))return 'Illia Berezovskyi';
+  // Rule 88
+  if(eq(p,'Ukrainian'))return 'Illia Berezovskyi';
+  // Rule 89
+  if(eq(p,'Chinese Mandarin'))return 'Taiwan Queue';
+  // Rule 90
+  if(eq(p,'Thai'))return 'Thai Queue';
+  // Rule 91
+  if(eq(p,'Irish'))return 'Illia Berezovskyi';
+  // Rule 92
+  if(eq(p,'Hindi'))return 'India Leads Queue';
+  // Rule 93
+  if(eq(p,'Indonesian'))return 'Indonesia Queue';
+  // Rule 94
+  if(eq(p,'Italian'))return 'Italian Desk Queue - Lead';
+  // Rule 95
+  if(eq(p,'Swahili'))return 'Kenya Queue';
+  // Rule 96
+  if(eq(p,'Korean'))return 'Korean Leads Queue';
+  // Rule 97
+  if(eq(p,'Turkish'))return 'Yilmaz Serden';
+  // Rule 98
+  if(eq(p,'Vietnamese'))return 'Vietnam Queue';
+  // Rule 99
+  if(eq(p,'Cantonese'))return 'Junlim Tan';
+  // Rule 100
+  if(eq(p,'Tagalog,Filipino'))return 'Philippines Queue';
+  // Rule 101
+  if(eq(p,'Bengali'))return 'Bangladesh Lead Queue';
+  // Rule 102
+  if(eq(c,'Greece'))return 'George Tziazas';
+  // Rule 103
+  if(eq(c,'Poland'))return 'Nikos Nouardos';
+  // Rule 104
+  if(eq(c,'Philippines'))return 'Philippines Queue';
+  // Rule 105
+  if(eq(c,'Åland Islands,Bouvet Island,Bulgaria,Croatia,Czech Republic,Denmark,Equatorial Guinea,Finland,Guernsey,Iceland,Ireland,Isle of Man,Jersey,North Macedonia,Norway,Slovenia,Svalbard and Jan Mayen,Sweden'))return 'Illia Gizem George Queue';
+  // Rule 106
+  if(eq(c,'Bulgaria,Cayman Islands,Croatia,Czech Republic,Guernsey,Ireland,Isle of Man,Jersey,North Macedonia,Slovenia,United Kingdom of Great Britain and Northern Ireland'))return 'Illia Gizem George Queue';
+  // Rule 107
+  if(eq(c,'Nigeria'))return 'Nigeria Queue';
+  // Rule 108
+  if(eq(c,'China'))return 'China Lead Queue';
+  // Rule 109
+  if(eq(c,'Gibraltar,Italy,Malta,San Marino,Vatican City'))return 'Italian Desk Queue - Lead';
+  // Rule 110
+  if(eq(c,'Turkey'))return 'Yilmaz Serden';
+  // Rule 111
+  if(eq(c,'Cameroon,COTE D\'IVOIRE,Senegal,Benin')||inc(c,'Congo'))return 'Andy Kalla';
+  // Rule 112
+  if(eq(c,'Burkina Faso,Burundi,Central African Republic,France,French Guiana,French Southern Territories,Gabon,Guadeloupe,Guinea,Haiti,Madagascar,Martinique,Mauritius,Mayotte,Monaco,Niger,Reunion,Saint Barthélemy,Saint Pierre and Miquelon,Seychelles,Togo')||(inc(c,'Saint Martin')&&inc(c,'French part')))return 'Illia Berezovskyi';
+  // Rule 113
+  if(eq(c,'Antarctica,Estonia,Latvia,Lithuania'))return 'Illia Berezovskyi';
+  // Rule 114
+  if(eq(c,'Belarus'))return 'Illia Berezovskyi';
+  // Rule 115
+  if(eq(c,'Western Sahara'))return 'MENA Leads Queue';
+  // Rule 116
+  if(eq(c,'Algeria,Egypt,Jordan,Mauritania,Oman'))return 'MENA Leads Queue';
+  // Rule 117
+  if(eq(c,'Morocco'))return 'Maryam Tajiri';
+  // Rule 118
+  if(eq(c,'Tunisia'))return 'MENA Leads Queue';
+  // Rule 119
+  if(eq(c,'Bahrain,Kuwait,Lebanon,Qatar,Saudi Arabia,United Arab Emirates'))return 'MENA Leads Queue';
+  // Rule 120
+  if(eq(c,'Korea')||(inc(c,'Korea')&&inc(c,'Republic of (South Korea)')))return 'Korean Leads Queue';
+  // Rule 121
+  if(eq(c,'Israel'))return 'George Tziazas';
+  // Rule 122
+  if(eq(c,'Liechtenstein,Netherlands,Netherlands Antilles,Cyprus'))return 'George Tziazas';
+  // Rule 123
+  if(eq(c,'Germany,Austria,Switzerland'))return 'Mariia Bartienieva';
+  // Rule 124
+  if(eq(c,'Indonesia'))return 'Indonesia Queue';
+  // Rule 125
+  if(eq(c,'Cambodia,Lao People\'s Democratic Republic,Thailand'))return 'Thai Queue';
+  // Rule 126
+  if(eq(c,'Heard Island and McDonald Islands'))return 'Siri Onpheng';
+  // Rule 127
+  if(eq(c,'Viet Nam'))return 'Vietnam Queue';
+  // Rule 128
+  if(eq(c,'Canada,United Kingdom'))return 'George Tziazas';
+  // Rule 129
+  if(eq(c,'Uganda,Zambia,Namibia,Zimbabwe,Botswana,Lesotho,Rwanda,Swaziland,Eswatini,Eritrea,Gambia,Sierra Leone,Malawi,Ghana')||inc(c,'Tanzania'))return 'Osei Yared Queue';
+  // Rule 130
+  if(eq(c,'Dominica,Guyana'))return 'Angel Romo';
+  // Rule 131
+  if(eq(c,'Kenya'))return 'Kenya Queue';
+  // Rule 132
+  if(eq(c,'Ethiopia'))return 'Yared Asmare';
+  // Rule 133
+  if(eq(c,'Chad,Comoros,Djibouti'))return 'Illia Berezovskyi';
+  // Rule 134
+  if(eq(c,'Luxembourg'))return 'Illia Berezovskyi';
+  // Rule 135
+  if(eq(c,'French Polynesia,New Caledonia'))return 'Ilia_Siri_Queue';
+  // Rule 136
+  if(eq(c,'Brunei Darussalam,Malaysia,Singapore'))return 'Malaysia Queue';
+  // Rule 137
+  if(eq(c,'South Africa'))return 'Osei Patrick';
+  // Rule 138
+  if(eq(c,'Armenia,Azerbaijan,Georgia,Kazakhstan,Ukraine,Kyrgyzstan,Tajikistan,Uzbekistan,Turkmenistan'))return 'Illia Berezovskyi';
+  // Rule 139
+  if(eq(c,'Albania,Bosnia and Herzegovina,Montenegro,Serbia')||inc(c,'Kosovo'))return 'Illia George Monica Queue';
+  // Rule 140
+  if(inc(c,'Moldova')&&inc(c,'Republic of'))return 'Illia Monica Queue';
+  // Rule 141
+  if(eq(c,'British Indian Ocean Territory,Faroe Islands,Hungary,Jamaica,Mongolia,Slovakia,Suriname'))return 'Illia Gizem George Queue';
+  // Rule 142
+  if(eq(c,'American Samoa,Anguilla,Antigua and Barbuda,Aruba,Bahamas,Barbados,Belize,Bermuda,Greenland,Grenada,Montserrat,Saint Kitts and Nevis,Saint Lucia,Saint Vincent and the Grenadines,Trinidad and Tobago,Turks and Caicos Islands')||(inc(c,'Bonaire')&&inc(c,'Sint Eustatius and Saba'))||(inc(c,'Sint Maarten')&&inc(c,'Dutch part'))||(inc(c,'Virgin Islands')&&inc(c,'British')))return 'Illia George Queue';
+  // Rule 143
+  if(eq(c,'India'))return 'India Leads Queue';
+  // Rule 144
+  if(eq(c,'Nepal'))return 'Jafar Mohammed';
+  // Rule 145
+  if(eq(c,'Bangladesh'))return 'Bangladesh Lead Queue';
+  // Rule 146
+  if(eq(c,'Maldives,Sri Lanka,Bhutan'))return 'Jafar Mohammed';
+  // Rule 147
+  if(eq(c,'Hong Kong'))return 'Emily_Dong_Queue';
+  // Rule 148
+  if(eq(c,'Cook Islands,Fiji,Guam,Kiribati,Macau,Marshall Islands,Nauru,Niue,Norfolk Island,Northern Mariana Islands,Palau,Papua New Guinea,Pitcairn,Samoa,Solomon Islands,Tokelau,Tonga,Tuvalu,Vanuatu,Wallis and Futuna Islands')||(inc(c,'Micronesia')&&inc(c,'Federated States of')))return 'Australian Queue';
+  // Rule 149
+  if(inc(c,'Taiwan')||inc(c,'Province of China'))return 'Taiwan Queue';
+  // Rule 150
+  if(eq(c,'Pakistan'))return 'Pakistan Queue - Lead';
+  return 'Unmatched';
+}
+
+function parseCSV(text){
+  const lines=text.trim().split(/\r?\n/);
+  if(lines.length<2)return null;
+  const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'').toLowerCase());
+  const rows=[];
+  for(let i=1;i<lines.length;i++){
+    if(!lines[i].trim())continue;
+    const vals=[];
+    let cur='',inq=false;
+    for(let ch of lines[i]){
+      if(ch==='"'){inq=!inq}else if(ch===','&&!inq){vals.push(cur.trim());cur=''}else{cur+=ch}
+    }
+    vals.push(cur.trim());
+    const row={};
+    headers.forEach((h,idx)=>row[h]=vals[idx]||'');
+    rows.push(row);
+  }
+  return{headers,rows};
+}
+
+function findCol(headers, ...candidates){
+  for(let c of candidates){
+    const f=headers.find(h=>h.replace(/[^a-z]/g,'').includes(c.replace(/[^a-z]/g,'')));
+    if(f)return f;
+  }
+  return null;
+}
+
+let processedRows=[];
+
+function processFile(file){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const text=e.target.result;
+    const parsed=parseCSV(text);
+    if(!parsed){showErr('Could not parse CSV. Ensure the file has headers and data.');return}
+    const{headers,rows}=parsed;
+    const colId=findCol(headers,'recordid','record','id');
+    const colLang=findCol(headers,'language','lang');
+    const colCountry=findCol(headers,'country');
+    const colPref=findCol(headers,'preferredlanguage','preferred','preflang');
+    if(!colCountry&&!colLang){showErr('Could not detect required columns. Make sure headers include: recordid, language, country, preferred language');return}
+    hideErr();
+    processedRows=rows.map(r=>{
+      const id=colId?r[colId]:'';
+      const lang=colLang?r[colLang]:'';
+      const country=colCountry?r[colCountry]:'';
+      const pref=colPref?r[colPref]:'';
+      const owner=assign(lang,country,pref);
+      return{recordid:id,language:lang,country,preferred_language:pref,owner};
+    });
+    const matched=processedRows.filter(r=>r.owner!=='Unmatched').length;
+    document.getElementById('s-total').textContent=processedRows.length;
+    document.getElementById('s-matched').textContent=matched;
+    document.getElementById('s-unmatched').textContent=processedRows.length-matched;
+    renderPreview(processedRows.slice(0,10));
+    const csv=buildCSV(processedRows);
+    document.getElementById('csv-out').value=csv;
+    document.getElementById('results').classList.remove('hidden');
+    document.getElementById('zone').classList.add('hidden');
+  };
+  reader.readAsText(file);
+}
+
+function renderPreview(rows){
+  const tbody=document.getElementById('preview-body');
+  tbody.innerHTML=rows.map(r=>`<tr>
+    <td title="${r.recordid}">${r.recordid||'—'}</td>
+    <td title="${r.language}">${r.language||'—'}</td>
+    <td title="${r.country}">${r.country||'—'}</td>
+    <td title="${r.preferred_language}">${r.preferred_language||'—'}</td>
+    <td><span class="${r.owner==='Unmatched'?'unmatched':'owner-badge'}">${r.owner}</span></td>
+  </tr>`).join('');
+}
+
+function buildCSV(rows){
+  const header='Record ID,Language,Country,Preferred Language,Assigned Owner';
+  const lines=rows.map(r=>[r.recordid,r.language,r.country,r.preferred_language,r.owner].map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(','));
+  return[header,...lines].join('\r\n');
+}
+
+function copyCSV(){
+  const ta=document.getElementById('csv-out');
+  ta.select();
+  document.execCommand('copy');
+  const msg=document.getElementById('copy-msg');
+  msg.classList.remove('hidden');
+  setTimeout(()=>msg.classList.add('hidden'),2000);
+}
+
+function showErr(msg){document.getElementById('err').textContent=msg;document.getElementById('err').classList.remove('hidden')}
+function hideErr(){document.getElementById('err').classList.add('hidden')}
+function resetApp(){document.getElementById('results').classList.add('hidden');document.getElementById('zone').classList.remove('hidden');filein.value='';processedRows=[]}
+</script>
