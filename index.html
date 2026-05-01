@@ -1,4 +1,3 @@
-
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--font-sans);color:var(--color-text-primary);background:transparent}
@@ -160,7 +159,7 @@ function assign(lang, country, pref){
 
   // Rule 62 - agent field not in our data
   // Rule 63
-  if((sw(l,'EN')||sw(l,'sc-')||sw(l,'EU')||sw(l,'ke-')||sw(l,'stl-'))&&eq(c,'Iraq'))return 'Maria and Maryam Lead Queue';
+  if((sw(l,'EN')||sw(l,'sc-')||sw(l,'EU')||sw(l,'ke-')||sw(l,'stl-'))&&eq(c,'Iraq'))return 'a.yousef';
   // Rule 64 - banned country
   const bannedC='Afghanistan,Albania,American Samoa,Belarus,Belgium,Canada,Central African Republic,Cuba,Cyprus,Iraq,Japan,Liberia,Mali,Myanmar,New Zealand,Russian Federation,Somalia,South Sudan,Sudan,Syrian Arab Republic,United States Minor Outlying Islands,United States of America,Yemen';
   if(eq(c,bannedC)||(inc(c,'Iran')&&inc(c,'Islamic Republic of'))||(inc(c,'Korea')&&inc(c,'Democratic People\'s Republic of'))||(inc(c,'Palestine')&&inc(c,'State of'))||(inc(c,'Virgin Islands')&&inc(c,'U.S.'))||inc(c,'France')||inc(c,'Holy See (Vatican City State)')||inc(c,'India')||inc(c,'Libyan Arab Jamahiriya')||inc(c,'Monaco')||inc(c,'Puerto Rico')||inc(c,'Republic of Kosovo')||inc(c,'San Marino')||inc(c,'Serbia')||inc(c,'Spain')||inc(c,'Switzerland')||inc(c,'Ukraine'))return 'Banned Country';
@@ -197,14 +196,10 @@ function assign(lang, country, pref){
   // Rule 80
   if(eq(p,'Arabic')&&neq(c,'Morocco'))return 'MENA Leads Queue';
   // Rule 81
-  if(eq(p,'Polish'))return 'Nikos Nouardos';
-  // Rule 82
   if(eq(p,'Urdu'))return 'Pakistan Queue - Lead';
-  // Rule 83
+  // Rule 82
   if(eq(p,'Russian'))return 'Illia Berezovskyi';
-  // Rule 84
-  if(eq(p,'German'))return 'Mariia Bartienieva';
-  // Rule 85
+  // Rule 83
   if(eq(p,'Greek'))return 'George Tziazas';
   // Rule 86
   if(eq(p,'Malay'))return 'Malaysia Queue';
@@ -241,8 +236,6 @@ function assign(lang, country, pref){
   // Rule 102
   if(eq(c,'Greece'))return 'George Tziazas';
   // Rule 103
-  if(eq(c,'Poland'))return 'Nikos Nouardos';
-  // Rule 104
   if(eq(c,'Philippines'))return 'Philippines Queue';
   // Rule 105
   if(eq(c,'Åland Islands,Bouvet Island,Bulgaria,Croatia,Czech Republic,Denmark,Equatorial Guinea,Finland,Guernsey,Iceland,Ireland,Isle of Man,Jersey,North Macedonia,Norway,Slovenia,Svalbard and Jan Mayen,Sweden'))return 'Illia Gizem George Queue';
@@ -277,12 +270,10 @@ function assign(lang, country, pref){
   // Rule 120
   if(eq(c,'Korea')||(inc(c,'Korea')&&inc(c,'Republic of (South Korea)')))return 'Korean Leads Queue';
   // Rule 121
-  if(eq(c,'Israel'))return 'George Tziazas';
+  if(eq(c,'Israel')||eq(c,'United Kingdom'))return 'Monica George Leads Queue';
   // Rule 122
   if(eq(c,'Liechtenstein,Netherlands,Netherlands Antilles,Cyprus'))return 'George Tziazas';
   // Rule 123
-  if(eq(c,'Germany,Austria,Switzerland'))return 'Mariia Bartienieva';
-  // Rule 124
   if(eq(c,'Indonesia'))return 'Indonesia Queue';
   // Rule 125
   if(eq(c,'Cambodia,Lao People\'s Democratic Republic,Thailand'))return 'Thai Queue';
@@ -291,7 +282,7 @@ function assign(lang, country, pref){
   // Rule 127
   if(eq(c,'Viet Nam'))return 'Vietnam Queue';
   // Rule 128
-  if(eq(c,'Canada,United Kingdom'))return 'George Tziazas';
+  if(eq(c,'Canada'))return 'George Tziazas';
   // Rule 129
   if(eq(c,'Uganda,Zambia,Namibia,Zimbabwe,Botswana,Lesotho,Rwanda,Swaziland,Eswatini,Eritrea,Gambia,Sierra Leone,Malawi,Ghana')||inc(c,'Tanzania'))return 'Osei Yared Queue';
   // Rule 130
@@ -330,8 +321,12 @@ function assign(lang, country, pref){
   if(eq(c,'Maldives,Sri Lanka,Bhutan'))return 'Jafar Mohammed';
   // Rule 147
   if(eq(c,'Hong Kong'))return 'Emily_Dong_Queue';
-  // Rule 148
-  if(eq(c,'Cook Islands,Fiji,Guam,Kiribati,Macau,Marshall Islands,Nauru,Niue,Norfolk Island,Northern Mariana Islands,Palau,Papua New Guinea,Pitcairn,Samoa,Solomon Islands,Tokelau,Tonga,Tuvalu,Vanuatu,Wallis and Futuna Islands')||(inc(c,'Micronesia')&&inc(c,'Federated States of')))return 'Australian Queue';
+  // Rule 148: s.kianwee — Pacific island nations
+  if(eq(c,'Samoa,Fiji,Tokelau,Tonga,Nauru,Wallis and Futuna Islands,Tuvalu,Pitcairn,Norfolk Island,Niue,Kiribati,Marshall Island,Cook Islands')||inc(c,'Micronesia'))return 's.kianwee';
+  // Rule 149: d.an — Macau
+  if(eq(c,'Macau'))return 'd.an';
+  // Rule 150: m.anghel — Melanesia/Micronesia
+  if(eq(c,'Vanuatu,Solomon Islands,Papua New Guine,Palau,Northern Mariana Islands,Guam'))return 'm.anghel';
   // Rule 149
   if(inc(c,'Taiwan')||inc(c,'Province of China'))return 'Taiwan Queue';
   // Rule 150
